@@ -16,73 +16,62 @@ use think\Validate;
 
 class News extends Controller
 {
-    public function list_news(){
+    //新闻列表
+    public function newsList(){
         $news = new NewsModel();
-        $count = $news -> getCountNews();
-        $list = $news->paginate(5,false,['path' => '/admin/main#/news/list_news' ]);
-        foreach($list as $value){
-            $value['title'] = mb_substr($value['title'],0,10,'utf-8');
-            $value['info'] = mb_substr($value['info'],0,30,'utf-8').'...';
-            $value['state'] = $value['state'] ? '通过' : '未通过';
-            $value['c_date'] = date('Y-m-d' , $value['c_date']);
-        }
-        return view('list_news',['List' => $list,'Count' => $count]);
+        $newsCount = $news -> getCountNews();
+        $newsList = $news -> order('id DESC') -> paginate(5,false,['path' => '/admin/main#/news/newsList' ]);
+        return $newsList -> items() ? view('news_list',['List' => $newsList , 'Count' => $newsCount]) : ReturnJson::ReturnA('未查询到相关数据信息...');
     }
 
-    public function add_news(){
+    //添加新闻
+    public function newsAdd(){
         if($this->request->isPost()){
-            $post_data = array();
-            $post_data = $this -> request -> post();
-            $post_data['author'] = empty($post_data['author']) ? '平台作者' : $post_data['author'];
-            $post_data['c_date'] = time();
-            $post_data['u_date'] = time();
-            $post_data['state'] = 1;
-            //var_dump($post_data);
+            $data = $this -> request -> post();
             $validate = new NewsValidate();
-            if($validate -> check($post_data)){
+            if($validate -> check($data)){
                 $news = new NewsModel();
-                return $news -> allowField(true) -> save($post_data) ? ReturnJson::ReturnJ("恭喜你啊，搞定了！","success","/news/list_news") : ReturnJson::ReturnJ("出现了一些纰漏，没有创建成功，请重新提交！","false");
+                return $news -> save($data) ? ReturnJson::ReturnJ("新闻数据创建成功...","success","/news/newsList") : ReturnJson::ReturnJ("新闻创建失败，请重新提交...","false");
             }else{
                 return ReturnJson::ReturnJ($validate -> getError(),"false");
             }
         }else{
-            return view('add_news');
+            return view('news_add');
         }
     }
 
-    public function update_news(){
+    public function newsUpdate(){
         //修改提交信息
         if($this -> request -> isPost()){
-            $post_data = array();
-            $post_data = $this -> request -> Post();
-            if(isset($post_data['id']) && empty($post_data['id'])){
-                return ReturnJson::ReturnJ('非法数据操作！','false','/news/list_news');
+            $data = $this -> request -> Post();
+            if(isset($data['id']) && empty($data['id'])){
+                return ReturnJson::ReturnJ('无效的数据操作...','false','/news/news_list');
             }
-            $post_data['author'] = empty($post_data['author']) ? '平台作者' : $post_data['author'];
-            $post_data['u_date'] = time();
             $validate = new NewsValidate();
-            if($validate -> check($post_data)){
+            if($validate -> check($data)){
                 $news = new NewsModel();
-                 return $news -> save($post_data,['id' => $post_data['id']]) ? ReturnJson::ReturnJ('恭喜你啊，更新成功了！','success','/news/list_news') : ReturnJson::ReturnJ('出现了一些纰漏，没有更新成功，请重新提交！','false');
+                 return $news -> save($data,['id' => $data['id']]) ? ReturnJson::ReturnJ('数据更新成功...','success','/news/newsList') : ReturnJson::ReturnJ('数据更新失败，请重新操作...','false');
             }
             return ReturnJson::ReturnJ($validate -> getError(),'false');
         }
 
         //获取、展示修改信息
-        if(isset($_GET['id'])){
+        if(isset($_GET['id']) && !empty($_GET['id'])){
+            $id = $this -> request -> get('id');
             $news = new NewsModel();
-            $getOne = $news -> field('id,title,author,thumbnail,info,content,state') -> where('id',$_GET['id']) -> limit(1) -> find();
-            return $getOne ?  view('update_news',['getOne' => $getOne]) : ReturnJson::ReturnH("未获取到相应的新闻数据信息！","#/news/list_news");
+            $getOne = $news -> where('id',$id) -> limit(1) -> find();
+            return $getOne ?  view('news_update',['getOne' => $getOne]) : ReturnJson::ReturnH("未获取到相应的新闻数据信息...","#/news/news_list");
         }else{
-            ReturnJson::ReturnH("非法数据操作!！","#/news/list_news");
+            ReturnJson::ReturnA("无效的修改操作...");
         }
 
     }
 
-    public function del_news(){
-        if(isset($_GET['id'])){
+    public function newsDel(){
+        if(isset($_GET['id']) && !empty($_GET['id'])){
+            $id = $this -> request -> get('id');
             $news = new NewsModel();
-            return $news -> where('id','eq',$_GET['id']) -> delete() ? ReturnJson::ReturnJ("已成功删除此信息!") : ReturnJson::ReturnJ($news -> getError(),"false");
+            return $news -> where('id',$id) -> delete() ? ReturnJson::ReturnJ("已成功删除此信息...") : ReturnJson::ReturnJ($news -> getError(),"false");
         }
         return ReturnJson::ReturnJ("非法的数据提交信息!","false");
     }
@@ -101,13 +90,7 @@ class News extends Controller
                 if (empty($serachList->items())) {
                     return ReturnJson::ReturnA('未查询到相关数据，请重新搜索！');
                 } else {
-                    foreach($serachList as $value){
-                        $value['title'] = mb_substr($value['title'],0,10,'utf-8');
-                        $value['info'] = mb_substr($value['info'],0,30,'utf-8').'...';
-                        $value['state'] = $value['state'] ? '通过' : '未通过';
-                        $value['c_date'] = date('Y-m-d' , $value['c_date']);
-                    }
-                    return view('serach_news' , ['serachList' => $serachList , 'Count' => $news->getCountSerachNews($post_data)]);
+                    return view('news_serach' , ['serachList' => $serachList , 'Count' => $news->getCountSerachNews($post_data)]);
                 }
             }
         }else{
@@ -115,6 +98,7 @@ class News extends Controller
         }
 
     }
+
 
 
 }
